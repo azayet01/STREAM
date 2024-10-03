@@ -1,21 +1,21 @@
 CC = gcc
-CFLAGS = -O2 -fopenmp
 
-FC = gfortran
-FFLAGS = -O2 -fopenmp
+# SMC memory bandwidth benchmark with all available CPUs.
+CFLAGS = -O2 -fopenmp -DSTREAM_ARRAY_SIZE=100000000
 
-all: stream_f.exe stream_c.exe
+# Single memory bandwidth benchmark using 1 CPU.
+# CFLAGS = -O2 -DSTREAM_ARRAY_SIZE=100000000
 
-stream_f.exe: stream.f mysecond.o
-	$(CC) $(CFLAGS) -c mysecond.c
-	$(FC) $(FFLAGS) -c stream.f
-	$(FC) $(FFLAGS) stream.o mysecond.o -o stream_f.exe
+all: stream
 
-stream_c.exe: stream.c
-	$(CC) $(CFLAGS) stream.c -o stream_c.exe
+stream: stream.c
+	$(CC) $(CFLAGS) stream.c -o stream
+
+install:
+	install stream /usr/local/bin
 
 clean:
-	rm -f stream_f.exe stream_c.exe *.o
+	rm -f stream *.o
 
 # an example of a more complex build line for the Intel icc compiler
 stream.icc: stream.c
