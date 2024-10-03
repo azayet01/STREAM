@@ -15,7 +15,7 @@ install:
 	install stream /usr/local/bin
 
 clean:
-	rm -f stream *.o
+	rm -f stream *.o *.json *~
 
 # an example of a more complex build line for the Intel icc compiler
 stream.icc: stream.c
