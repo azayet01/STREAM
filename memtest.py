@@ -66,8 +66,8 @@ def generate_performance_table(all_results, function):
             best_rate = result["Results"][function]["Best Rate MB/s"]
             table.loc[cpu_node, mem_node] = best_rate
 
-    # Replace NaN values with 0 or another appropriate value
-    table = table.fillna(0)
+    # Infer object types to proper numeric types and replace NaN values
+    table = table.infer_objects(copy=False).fillna(0)
 
     return table
 
