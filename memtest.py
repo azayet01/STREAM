@@ -3,6 +3,8 @@ import json
 import re
 from itertools import product
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Regex pattern to extract the performance data from the output
 stream_output_pattern = r"(Copy|Scale|Add|Triad):\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
@@ -32,7 +34,7 @@ def detect_numa_nodes():
 
 # Run the STREAM benchmark with numactl and collect output
 def run_stream(cpu_node, mem_node):
-    command = f"numactl --cpunodebind={cpu_node} --membind={mem_node} stream"
+    command = f"numactl --cpunodebind={cpu_node} --membind={mem_node} ./stream.100M"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     return result.stdout
 
@@ -64,7 +66,50 @@ def generate_performance_table(all_results, function):
             best_rate = result["Results"][function]["Best Rate MB/s"]
             table.loc[cpu_node, mem_node] = best_rate
 
+    # Replace NaN values with 0 or another appropriate value
+    table = table.fillna(0)
+
     return table
+
+# Generate and save heatmap with seaborn
+def save_heatmap(table, function_name):
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        table,
+        annot=True, fmt=".2f", cmap="RdYlGn_r",  # 'RdYlGn_r' goes from red to green
+        linewidths=.5, square=True
+    )
+    plt.title(f"{function_name} Memory Performance Heatmap (MB/s)")
+    plt.ylabel('CPU Node')
+    plt.xlabel('Memory Node')
+    plt.savefig(f"{function_name}_performance_heatmap.png")  # Save the figure to a file
+    plt.close()  # Close the figure to free memory
+
+# Colorize value with ANSI colors based on range
+def colorize_value(value, min_val, max_val):
+    normalized = (value - min_val) / (max_val - min_val)
+    if normalized < 0.33:
+        return f"\033[92m{value:.2f}\033[0m"  # Green for low values
+    elif normalized < 0.66:
+        return f"\033[93m{value:.2f}\033[0m"  # Yellow for medium values
+    else:
+        return f"\033[91m{value:.2f}\033[0m"  # Red for high values
+
+# Print table with colored values for console
+def print_colored_table(table):
+    min_val = table.min().min()
+    max_val = table.max().max()
+
+    print("\nMemory Performance Table (MB/s):\n")
+    for row in table.index:
+        row_data = []
+        for col in table.columns:
+            val = table.loc[row, col]
+            if pd.isna(val):
+                row_data.append(f"  -  ")
+            else:
+                row_data.append(colorize_value(val, min_val, max_val))
+        print(f"{row}: {' | '.join(row_data)}")
 
 # Main function to run tests for all CPU and memory node combinations
 def main():
@@ -99,8 +144,12 @@ def main():
     for function in functions:
         table = generate_performance_table(all_results, function)
         tables[function] = table
-        print(f"\n{function} performance table (MB/s):")
-        print(table)
+
+        # Save the heatmap to a file
+        save_heatmap(table, function)
+
+        # Print the table with ANSI color output in console
+        print_colored_table(table)
 
     # Output results to JSON format
     with open("stream_performance_results.json", "w") as f:
