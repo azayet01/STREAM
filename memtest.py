@@ -34,7 +34,7 @@ def detect_numa_nodes():
 
 # Run the STREAM benchmark with numactl and collect output
 def run_stream(cpu_node, mem_node):
-    command = f"numactl --cpunodebind={cpu_node} --membind={mem_node} ./stream.100M"
+    command = f"numactl --cpunodebind={cpu_node} --membind={mem_node} stream"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     return result.stdout
 
