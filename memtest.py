@@ -22,14 +22,23 @@ def detect_numa_nodes():
         numactl_output = run_command("numactl --hardware")
 
         # Extract NUMA node numbers from the output
-        node_pattern = re.compile(r"available:\s(\d+)\snodes\s\((\d+-\d+)\)")
+        node_pattern = re.compile(r"available:\s+(\d+)\s+nodes\s+\(([\d,-]+)\)")
         node_match = node_pattern.search(numactl_output)
-        if node_match:
-            start_node, end_node = map(int, node_match.group(2).split('-'))
+
+        numa_nodes_raw = node_match.group(2)
+        if "-" in numa_nodes_raw:  # Case where NUMA nodes are a range (e.g., "0-1")
+            start_node, end_node = map(int, numa_nodes_raw.split('-'))
             numa_nodes = list(range(start_node, end_node + 1))
+        else:  # Case where NUMA nodes are explicitly listed (e.g., "0,1" or "0")
+            numa_nodes = [int(n) for n in numa_nodes_raw.split(",")]
+
+        if not numa_nodes:
+            raise ValueError("No NUMA nodes detected.")
+
     except Exception as e:
-        print(f"Error using numactl to detect NUMA nodes: {e}")
-        return [0]  # Default to NUMA node 0 if detection fails
+        print(f"Error detecting NUMA nodes: {e}")
+        return [0]  # Default to node 0 if detection fails
+
     return numa_nodes
 
 # Run the STREAM benchmark with numactl and collect output
@@ -87,7 +96,11 @@ def save_heatmap(table, function_name):
 
 # Colorize value with ANSI colors based on range
 def colorize_value(value, min_val, max_val):
+    if min_val == max_val:
+        return f"\033[92m{value:.2f}\033[0m"  # Default to green if no variation
+
     normalized = (value - min_val) / (max_val - min_val)
+
     if normalized < 0.33:
         return f"\033[92m{value:.2f}\033[0m"  # Green for low values
     elif normalized < 0.66:
@@ -96,11 +109,11 @@ def colorize_value(value, min_val, max_val):
         return f"\033[91m{value:.2f}\033[0m"  # Red for high values
 
 # Print table with colored values for console
-def print_colored_table(table):
+def print_colored_table(table, function):
     min_val = table.min().min()
     max_val = table.max().max()
 
-    print("\nMemory Performance Table (MB/s):\n")
+    print(f"\nMemory Performance Table for {function} function (in MB/s):\n")
     for row in table.index:
         row_data = []
         for col in table.columns:
@@ -149,7 +162,7 @@ def main():
         save_heatmap(table, function)
 
         # Print the table with ANSI color output in console
-        print_colored_table(table)
+        print_colored_table(table, function)
 
     # Output results to JSON format
     with open("stream_performance_results.json", "w") as f:
